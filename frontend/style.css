@@ -398,6 +398,15 @@ footer {
   50% { box-shadow: 0 4px 28px rgba(239, 68, 68, 0.45); }
 }
 
+.reports-today {
+  text-align: center;
+  color: #888;
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-top: -1rem;
+  margin-bottom: 1.5rem;
+}
+
 /* ── Modal ────────────────────────────────────────────────── */
 .modal-overlay {
   display: none;
@@ -639,6 +648,12 @@ footer {
   text-align: center;
   color: #999;
   padding: 2rem 0;
+}
+
+.lb-streak {
+  font-size: 0.8rem;
+  margin-left: 0.35rem;
+  white-space: nowrap;
 }
 
 @media (max-width: 480px) {

@@ -397,17 +397,40 @@ def _validate_username(username):
 
 
 def _increment_leaderboard(username):
-    """Atomically increment a leaderboard entry. Returns the new count."""
+    """Increment a leaderboard entry and update streak. Returns dict with score and streak."""
+    key = {"pk": "LEADERBOARD", "sk": f"USER#{username.lower()}"}
+    today_str = _central_today(time.time()).strftime("%Y-%m-%d")
+    yesterday_str = (_central_today(time.time()) - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    existing = table.get_item(Key=key).get("Item")
+    if existing:
+        last_date = existing.get("last_report_date", "")
+        current_streak = int(existing.get("current_streak", 0))
+        if last_date == today_str:
+            new_streak = current_streak  # already reported today
+        elif last_date == yesterday_str:
+            new_streak = current_streak + 1
+        else:
+            new_streak = 1
+    else:
+        new_streak = 1
+
     result = table.update_item(
-        Key={"pk": "LEADERBOARD", "sk": f"USER#{username.lower()}"},
-        UpdateExpression="SET display_name = :dn ADD report_count :one",
+        Key=key,
+        UpdateExpression="SET display_name = :dn, last_report_date = :ld, current_streak = :cs ADD report_count :one",
         ExpressionAttributeValues={
             ":dn": username,
             ":one": 1,
+            ":ld": today_str,
+            ":cs": new_streak,
         },
         ReturnValues="ALL_NEW",
     )
-    return int(result["Attributes"]["report_count"])
+    attrs = result["Attributes"]
+    return {
+        "score": int(attrs["report_count"]),
+        "streak": int(attrs.get("current_streak", 1)),
+    }
 
 
 def _submit_report(resource_id, body, source_ip, user_agent):
@@ -459,12 +482,21 @@ def _submit_report(resource_id, body, source_ip, user_agent):
         "ttl": Decimal(str(now_int + RATE_LIMIT_SECONDS)),
     })
 
+    # Increment daily report counter
+    today_str = _central_today(now).strftime("%Y-%m-%d")
+    table.update_item(
+        Key={"pk": "DAYSTATS", "sk": today_str},
+        UpdateExpression="ADD report_count :one",
+        ExpressionAttributeValues={":one": 1},
+    )
+
     # Leaderboard: increment score if username provided
     username = _validate_username(body.get("username", ""))
     response_body = {"message": "Report submitted", "status": status}
     if username:
-        score = _increment_leaderboard(username)
-        response_body["leaderboard_score"] = score
+        lb = _increment_leaderboard(username)
+        response_body["leaderboard_score"] = lb["score"]
+        response_body["leaderboard_streak"] = lb["streak"]
 
     return _resp(201, response_body)
 
@@ -492,8 +524,8 @@ def _register_reporter(body, source_ip, user_agent):
     if not rate_items.get("Items"):
         return _resp(400, {"error": "No recent report found. Submit a report first."})
 
-    score = _increment_leaderboard(username)
-    return _resp(200, {"username": username, "score": score})
+    lb = _increment_leaderboard(username)
+    return _resp(200, {"username": username, "score": lb["score"], "streak": lb["streak"]})
 
 
 def _get_leaderboard(query_params):
@@ -516,11 +548,20 @@ def _get_leaderboard(query_params):
             "rank": i + 1,
             "username": item.get("display_name", ""),
             "report_count": int(item.get("report_count", 0)),
+            "streak": int(item.get("current_streak", 0)),
         })
+
+    # Fetch today's report count
+    today_str = _central_today(time.time()).strftime("%Y-%m-%d")
+    stats_item = table.get_item(
+        Key={"pk": "DAYSTATS", "sk": today_str}
+    ).get("Item")
+    reports_today = int(stats_item.get("report_count", 0)) if stats_item else 0
 
     response = {
         "leaderboard": top_10,
         "total_reporters": len(items),
+        "reports_today": reports_today,
     }
 
     # If a username is requested, find their rank
@@ -533,6 +574,7 @@ def _get_leaderboard(query_params):
                     "rank": i + 1,
                     "username": item.get("display_name", ""),
                     "report_count": int(item.get("report_count", 0)),
+                    "streak": int(item.get("current_streak", 0)),
                 }
                 break
         response["user"] = user_entry

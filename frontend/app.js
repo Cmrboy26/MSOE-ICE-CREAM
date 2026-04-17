@@ -279,7 +279,7 @@
           }, 1000);
 
           if (savedName) {
-            showReturningModal(savedName, result.data.leaderboard_score || 0);
+            showReturningModal(savedName, result.data.leaderboard_score || 0, result.data.leaderboard_streak || 0);
           } else {
             showFirstTimeModal();
           }
@@ -360,7 +360,7 @@
         .then(function (result) {
           if (result.ok) {
             localStorage.setItem("ut_username", name);
-            showReturningModal(name, result.data.score || 1);
+            showReturningModal(name, result.data.score || 1, result.data.streak || 1);
           } else {
             errorEl.textContent = result.data.error || "Something went wrong.";
             joinBtn.disabled = false;
@@ -377,10 +377,14 @@
     setTimeout(function () { input.focus(); }, 100);
   }
 
-  function showReturningModal(name, score) {
+  function showReturningModal(name, score, streak) {
+    var streakHtml = streak > 0
+      ? '<p class="modal-text">&#128293; ' + streak + '-day streak!</p>'
+      : '';
     reportModalBody.innerHTML =
       '<div class="modal-heading">Report logged! &#9989;</div>' +
       '<p class="modal-text">Reported as <strong>' + esc(name) + '</strong>.<br>Your score: <strong>' + score + ' report' + (score !== 1 ? 's' : '') + '</strong></p>' +
+      streakHtml +
       '<div class="modal-actions">' +
       '  <button class="modal-btn-dismiss" id="lb-dismiss-btn">Nice!</button>' +
       '  <button class="modal-btn-skip" id="lb-view-btn">View Leaderboard</button>' +
@@ -431,18 +435,20 @@
           else if (entry.rank === 2) rankCls = " silver";
           else if (entry.rank === 3) rankCls = " bronze";
           var isMe = username && entry.username.toLowerCase() === username.toLowerCase();
+          var streakBadge = entry.streak > 0 ? ' <span class="lb-streak">&#128293;' + entry.streak + '</span>' : '';
           html +=
             '<li class="lb-row' + (isMe ? ' highlight' : '') + '">' +
             '  <span class="lb-rank' + rankCls + '">#' + entry.rank + '</span>' +
-            '  <span class="lb-name">' + esc(entry.username) + '</span>' +
+            '  <span class="lb-name">' + esc(entry.username) + streakBadge + '</span>' +
             '  <span class="lb-count">' + entry.report_count + '</span>' +
             '</li>';
         }
         html += '</ul>';
 
         if (data.user && data.user.rank > 10) {
+          var userStreakBadge = data.user.streak > 0 ? ' &#128293;' + data.user.streak : '';
           html += '<hr class="lb-separator">';
-          html += '<div class="lb-user-row">Your rank: <strong>#' + data.user.rank + '</strong> &mdash; ' + esc(data.user.username) + ' &mdash; ' + data.user.report_count + ' report' + (data.user.report_count !== 1 ? 's' : '') + '</div>';
+          html += '<div class="lb-user-row">Your rank: <strong>#' + data.user.rank + '</strong> &mdash; ' + esc(data.user.username) + userStreakBadge + ' &mdash; ' + data.user.report_count + ' report' + (data.user.report_count !== 1 ? 's' : '') + '</div>';
         }
 
         if (!username) {
@@ -450,6 +456,8 @@
         }
 
         lbContent.innerHTML = html;
+
+        updateReportsTodayBadge(data.reports_today || 0);
       })
       .catch(function () {
         lbContent.innerHTML = '<div class="lb-empty">Failed to load leaderboard.</div>';
@@ -463,6 +471,26 @@
   lbModal.addEventListener("click", function (e) {
     if (e.target === lbModal) lbModal.classList.remove("open");
   });
+
+  // ─── Reports-today badge ─────────────────────────────────
+  function updateReportsTodayBadge(count) {
+    var el = document.getElementById("reports-today");
+    if (!el) return;
+    if (count > 0) {
+      el.textContent = count + " report" + (count !== 1 ? "s" : "") + " today";
+      el.style.display = "block";
+    } else {
+      el.style.display = "none";
+    }
+  }
+
+  function fetchReportsToday() {
+    fetchJSON("/leaderboard")
+      .then(function (data) {
+        updateReportsTodayBadge((data && data.reports_today) || 0);
+      })
+      .catch(function () { /* silent */ });
+  }
 
   // ─── Fetch both status + history for a resource ─────────────
   var historyCache = {};
@@ -535,6 +563,9 @@
               refreshResource(r.id);
             });
           }, 30000);
+
+          // Fetch reports-today count
+          fetchReportsToday();
         });
       })
       .catch(function () {
