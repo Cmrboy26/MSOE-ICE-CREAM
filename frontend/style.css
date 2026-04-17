@@ -65,6 +65,18 @@ footer {
   font-size: 0.85rem;
 }
 
+.feedback-link {
+  color: #6366f1;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.feedback-link:hover {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
 /* ── Resource card ────────────────────────────────────────── */
 .resource-card {
   background: #fff;
