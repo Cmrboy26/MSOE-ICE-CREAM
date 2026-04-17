@@ -58,3 +58,21 @@ resource "aws_apigatewayv2_route" "post_leaderboard" {
   route_key = "POST /leaderboard"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
+
+resource "aws_apigatewayv2_route" "get_daily_poll" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /resources/{resource_id}/daily-poll"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_daily_poll" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /resources/{resource_id}/daily-poll"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_poll_history" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /resources/{resource_id}/poll-history"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}

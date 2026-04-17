@@ -298,6 +298,226 @@
     );
   }
 
+  // ─── Daily poll ──────────────────────────────────────────────
+  function fetchPoll(resourceId) {
+    var username = localStorage.getItem("ut_username") || "";
+    var url = "/resources/" + encodeURIComponent(resourceId) + "/daily-poll";
+    if (username) url += "?username=" + encodeURIComponent(username);
+    fetchJSON(url)
+      .then(function (data) { renderPoll(resourceId, data); })
+      .catch(function () { /* silent */ });
+  }
+
+  function renderPoll(resourceId, data) {
+    var el = document.getElementById("poll-" + resourceId);
+    if (!el || !data || !data.question) return;
+
+    var username = localStorage.getItem("ut_username") || "";
+    var html = '<div class="poll-card">';
+    html += '<div class="poll-label">\uD83D\uDCCA Daily Poll</div>';
+    html += '<div class="poll-question">' + esc(data.question) + '</div>';
+
+    if (data.type === "mc") {
+      html += renderMCPoll(resourceId, data, username);
+    } else {
+      html += renderFreePoll(resourceId, data, username);
+    }
+
+    html += '</div>';
+    el.innerHTML = html;
+    bindPollEvents(resourceId, data);
+  }
+
+  function renderMCPoll(resourceId, data, username) {
+    var total = data.total_votes || 0;
+    var html = '<div class="poll-options">';
+    for (var i = 0; i < data.options.length; i++) {
+      var count = (data.tallies && data.tallies[i]) || 0;
+      var pct = total > 0 ? Math.round(count / total * 100) : 0;
+      var isMyVote = data.user_voted && data.user_choice === i;
+      var votedCls = data.user_voted ? " voted" : "";
+      var myCls = isMyVote ? " my-vote" : "";
+      var clickable = (!data.user_voted && username) ? ' data-choice="' + i + '" data-resource="' + resourceId + '"' : "";
+
+      html += '<div class="poll-option' + votedCls + myCls + '"' + clickable + '>';
+      html += '<div class="poll-option-bar" style="width: ' + pct + '%"></div>';
+      html += '<span class="poll-option-text">' + esc(data.options[i]) + '</span>';
+      html += '<span class="poll-option-pct">' + (total > 0 ? pct + '%' : '') + '</span>';
+      if (isMyVote) html += '<span class="poll-check">\u2713</span>';
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '<div class="poll-meta">' + total + ' vote' + (total !== 1 ? 's' : '');
+    if (!username) {
+      html += ' \u00b7 <span class="poll-cta">Set a name to vote</span>';
+    } else if (!data.user_voted) {
+      html += ' \u00b7 Tap to vote';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderFreePoll(resourceId, data, username) {
+    var html = '';
+    if (!data.user_voted && username) {
+      html += '<div class="poll-free-input">';
+      html += '<input type="text" class="poll-text-input" id="poll-input-' + resourceId + '" maxlength="100" placeholder="Your answer\u2026" />';
+      html += '<button class="poll-submit-btn" id="poll-submit-' + resourceId + '">Submit</button>';
+      html += '</div>';
+    } else if (!username) {
+      html += '<div class="poll-free-cta">Set a name via the leaderboard to respond</div>';
+    } else {
+      html += '<div class="poll-your-answer">Your answer: \u201C' + esc(data.user_choice) + '\u201D \u2713</div>';
+    }
+
+    var responses = data.responses || [];
+    if (responses.length > 0) {
+      html += '<div class="poll-responses">';
+      var show = Math.min(responses.length, 8);
+      for (var i = 0; i < show; i++) {
+        html += '<div class="poll-response">';
+        html += '<span class="poll-response-text">\u201C' + esc(responses[i].text) + '\u201D</span>';
+        html += '<span class="poll-response-user">\u2014 ' + esc(responses[i].username) + '</span>';
+        html += '</div>';
+      }
+      if (responses.length > 8) {
+        html += '<div class="poll-more">+ ' + (responses.length - 8) + ' more</div>';
+      }
+      html += '</div>';
+    }
+    html += '<div class="poll-meta">' + (data.total_votes || 0) + ' response' + ((data.total_votes || 0) !== 1 ? 's' : '') + '</div>';
+    return html;
+  }
+
+  function bindPollEvents(resourceId, data) {
+    var username = localStorage.getItem("ut_username") || "";
+    if (!username || data.user_voted) return;
+
+    if (data.type === "mc") {
+      var opts = document.querySelectorAll('#poll-' + resourceId + ' .poll-option[data-choice]');
+      for (var i = 0; i < opts.length; i++) {
+        (function (opt) {
+          opt.addEventListener("click", function () {
+            var choice = parseInt(opt.getAttribute("data-choice"), 10);
+            submitPollVote(resourceId, choice);
+          });
+        })(opts[i]);
+      }
+    } else {
+      var btn = document.getElementById("poll-submit-" + resourceId);
+      var input = document.getElementById("poll-input-" + resourceId);
+      if (btn && input) {
+        btn.addEventListener("click", function () {
+          var text = input.value.trim();
+          if (!text) return;
+          submitPollVote(resourceId, text);
+        });
+        input.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") {
+            var text = input.value.trim();
+            if (!text) return;
+            submitPollVote(resourceId, text);
+          }
+        });
+      }
+    }
+
+    // CTA to open leaderboard for name entry
+    var cta = document.querySelector('#poll-' + resourceId + ' .poll-cta');
+    if (cta) {
+      cta.style.cursor = "pointer";
+      cta.addEventListener("click", function () { openLeaderboard(); });
+    }
+  }
+
+  function submitPollVote(resourceId, choice) {
+    var username = localStorage.getItem("ut_username") || "";
+    if (!username) return;
+
+    postJSON("/resources/" + encodeURIComponent(resourceId) + "/daily-poll", {
+      username: username,
+      choice: choice,
+    }).then(function (result) {
+      if (result.ok || result.status === 409) {
+        fetchPoll(resourceId);
+      }
+    }).catch(function () { /* silent */ });
+  }
+
+  // ─── Poll history ──────────────────────────────────────────
+  function fetchPollHistory(resourceId) {
+    var el = document.getElementById("poll-history-" + resourceId);
+    if (!el) return;
+
+    // Toggle: if already loaded, just toggle visibility
+    if (el.dataset.loaded === "1") {
+      var isHidden = el.style.display === "none";
+      el.style.display = isHidden ? "block" : "none";
+      var btn = document.getElementById("poll-history-btn-" + resourceId);
+      if (btn) btn.textContent = isHidden ? "Hide past polls" : "Past polls";
+      return;
+    }
+
+    el.innerHTML = '<div class="poll-hist-loading">Loading\u2026</div>';
+    el.style.display = "block";
+    var btn = document.getElementById("poll-history-btn-" + resourceId);
+    if (btn) btn.textContent = "Hide past polls";
+
+    fetchJSON("/resources/" + encodeURIComponent(resourceId) + "/poll-history")
+      .then(function (data) {
+        el.dataset.loaded = "1";
+        var polls = (data && data.polls) || [];
+        if (polls.length === 0) {
+          el.innerHTML = '<div class="poll-hist-empty">No past polls yet.</div>';
+          return;
+        }
+        var html = '';
+        for (var i = 0; i < polls.length; i++) {
+          html += renderPollHistoryItem(polls[i]);
+        }
+        el.innerHTML = html;
+      })
+      .catch(function () {
+        el.innerHTML = '<div class="poll-hist-empty">Failed to load past polls.</div>';
+      });
+  }
+
+  function renderPollHistoryItem(poll) {
+    var html = '<div class="poll-hist-item">';
+    html += '<div class="poll-hist-date">' + formatDate(poll.date) + '</div>';
+    html += '<div class="poll-hist-question">' + esc(poll.question) + '</div>';
+
+    if (poll.type === "mc") {
+      var total = poll.total_votes || 0;
+      html += '<div class="poll-hist-options">';
+      for (var i = 0; i < poll.options.length; i++) {
+        var count = (poll.tallies && poll.tallies[i]) || 0;
+        var pct = total > 0 ? Math.round(count / total * 100) : 0;
+        html += '<div class="poll-hist-option">';
+        html += '<div class="poll-hist-bar" style="width: ' + pct + '%"></div>';
+        html += '<span class="poll-hist-opt-text">' + esc(poll.options[i]) + '</span>';
+        html += '<span class="poll-hist-opt-pct">' + pct + '%</span>';
+        html += '</div>';
+      }
+      html += '</div>';
+    } else {
+      var responses = poll.responses || [];
+      html += '<div class="poll-hist-responses">';
+      var show = Math.min(responses.length, 5);
+      for (var j = 0; j < show; j++) {
+        html += '<div class="poll-hist-resp">\u201C' + esc(responses[j].text) + '\u201D <span class="poll-hist-user">\u2014 ' + esc(responses[j].username) + '</span></div>';
+      }
+      if (responses.length > 5) {
+        html += '<div class="poll-hist-more">+ ' + (responses.length - 5) + ' more</div>';
+      }
+      html += '</div>';
+    }
+
+    html += '<div class="poll-hist-votes">' + (poll.total_votes || 0) + ' vote' + ((poll.total_votes || 0) !== 1 ? 's' : '') + '</div>';
+    html += '</div>';
+    return html;
+  }
+
   // ─── Build a resource card ──────────────────────────────────
   function renderCard(resource, sd, history) {
     var status = (sd && sd.status) || "unknown";
@@ -322,6 +542,21 @@
       '  <span class="resource-name">' + esc(resource.name) + "</span>" +
       "</div>" +
       '<p class="status-message ' + status + '">' + esc(msg) + "</p>" +
+      '<div class="report-prompt">What are you seeing?</div>' +
+      '<div class="report-buttons">' +
+      '  <button class="report-btn up" data-resource="' +
+      resource.id +
+      '" data-status="up"' +
+      (limited ? " disabled" : "") +
+      ">\u2705 It's Working</button>" +
+      '  <button class="report-btn down" data-resource="' +
+      resource.id +
+      '" data-status="down"' +
+      (limited ? " disabled" : "") +
+      ">\u26A0\uFE0F It's Down</button>" +
+      "</div>" +
+      '<div class="user-streak" id="streak-' + resource.id + '"></div>' +
+      '<div class="feedback" id="feedback-' + resource.id + '"></div>' +
       '<div class="stats-grid">' +
       '  <div class="stat">' +
       '    <div class="stat-value ' + status + '">' + capitalize(status) + "</div>" +
@@ -342,20 +577,9 @@
       "</div>" +
       renderHistoryBar(days) +
       renderComparisons(history && history.overall_up_pct) +
-      '<div class="report-buttons">' +
-      '  <button class="report-btn up" data-resource="' +
-      resource.id +
-      '" data-status="up"' +
-      (limited ? " disabled" : "") +
-      ">It's Working</button>" +
-      '  <button class="report-btn down" data-resource="' +
-      resource.id +
-      '" data-status="down"' +
-      (limited ? " disabled" : "") +
-      ">It's Down</button>" +
-      "</div>" +
-      '<div class="user-streak" id="streak-' + resource.id + '"></div>' +
-      '<div class="feedback" id="feedback-' + resource.id + '"></div>';
+      '<div class="daily-poll" id="poll-' + resource.id + '"></div>' +
+      '<button class="poll-history-btn" id="poll-history-btn-' + resource.id + '" onclick="togglePollHistory(\'' + resource.id + '\')">Past polls</button>' +
+      '<div class="poll-history" id="poll-history-' + resource.id + '" style="display:none"></div>';
 
     var btns = card.querySelectorAll(".report-btn");
     for (var i = 0; i < btns.length; i++) {
@@ -573,7 +797,11 @@
   var lbContent = document.getElementById("leaderboard-content");
   var lbClose = document.getElementById("leaderboard-close");
 
-  // Expose globally for the onclick handler
+  // Expose globally for the onclick handlers
+  window.togglePollHistory = function (resourceId) {
+    fetchPollHistory(resourceId);
+  };
+
   window.openLeaderboard = function () {
     lbModal.classList.add("open");
     lbContent.innerHTML = '<div class="loading">Loading&hellip;</div>';
@@ -706,6 +934,7 @@
         var newCard = renderCard(resource, data.status, data.history);
         existing.parentNode.replaceChild(newCard, existing);
         if (isLocallyLimited(id)) startCooldown(id);
+        fetchPoll(id);
       })
       .catch(function () {
         /* silent */
@@ -737,6 +966,7 @@
             var card = renderCard(r, allData[i].status, allData[i].history);
             container.appendChild(card);
             if (isLocallyLimited(r.id)) startCooldown(r.id);
+            fetchPoll(r.id);
           });
 
           // Auto-refresh every 30 s

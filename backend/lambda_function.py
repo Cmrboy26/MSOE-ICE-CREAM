@@ -5,8 +5,12 @@ Routes:
     GET  /resources                          -> list tracked resources
     GET  /resources/{resource_id}/status     -> current weighted status
     GET  /resources/{resource_id}/history    -> 90-day daily uptime history
-    POST /resources/{resource_id}/reports    -> submit a user report    GET  /leaderboard                        -> top reporters
-    POST /leaderboard                        -> register a reporter name"""
+    POST /resources/{resource_id}/reports    -> submit a user report
+    GET  /leaderboard                        -> top reporters
+    POST /leaderboard                        -> register a reporter name
+    GET  /resources/{resource_id}/daily-poll -> today's poll question + results
+    POST /resources/{resource_id}/daily-poll -> submit a poll vote
+"""
 
 import datetime
 import json
@@ -583,6 +587,286 @@ def _get_leaderboard(query_params):
 
 
 # ---------------------------------------------------------------------------
+# Daily poll
+# ---------------------------------------------------------------------------
+POLL_QUESTIONS_DOWN = [
+    {"q": "What do you miss most about the ice cream machine?", "type": "mc", "options": ["Soft serve", "The variety", "Having dessert at all", "The principle of the thing"]},
+    {"q": "How many days until you just buy a pint from the store?", "type": "mc", "options": ["Already did", "This week", "Holding out hope", "I refuse on principle"]},
+    {"q": "If the tarp could talk, what would it say?", "type": "free"},
+    {"q": "What's your coping mechanism for no ice cream?", "type": "free"},
+    {"q": "On a scale of 1\u20135, how much do you trust the ice cream machine?", "type": "mc", "options": ["1 - Not at all", "2 - Barely", "3 - It's complicated", "4 - Cautiously", "5 - Unwavering faith"]},
+    {"q": "The ice cream machine has been down for a while. What should replace it?", "type": "free"},
+    {"q": "What flavor would make the downtime worth it?", "type": "free"},
+    {"q": "If the ice cream machine wrote an out-of-office reply, what would it say?", "type": "free"},
+    {"q": "How do you explain the ice cream machine situation to visitors?", "type": "mc", "options": ["I don't", "Awkward laugh", "Show them this tracker", "Start a support group"]},
+    {"q": "Which stage of grief are you in about the ice cream machine?", "type": "mc", "options": ["Denial", "Anger", "Bargaining", "Depression", "Acceptance"]},
+]
+
+POLL_QUESTIONS_SHAKY = [
+    {"q": "Will the ice cream machine be working when you go to dinner tonight?", "type": "mc", "options": ["Definitely", "Probably", "Doubt it", "No chance"]},
+    {"q": "Cone or cup \u2014 if you even get the chance?", "type": "mc", "options": ["Cone", "Cup", "Bowl", "Whatever's available"]},
+    {"q": "Best strategy for catching the machine while it's up?", "type": "free"},
+    {"q": "Rate your confidence in the ice cream machine today", "type": "mc", "options": ["Very confident", "Somewhat confident", "Not confident", "What confidence?"]},
+    {"q": "What time of day is the ice cream machine most likely to work?", "type": "mc", "options": ["Breakfast", "Lunch", "Dinner", "Late night", "No pattern"]},
+    {"q": "Do you check this tracker before going to the dining hall?", "type": "mc", "options": ["Every time", "Sometimes", "Never thought to", "I live dangerously"]},
+    {"q": "What's your backup dessert when the machine is down?", "type": "free"},
+    {"q": "How many trips to the dining hall before you get ice cream?", "type": "mc", "options": ["1 (lucky)", "2-3", "4+", "I've lost count"]},
+    {"q": "If the ice cream machine were a group project partner, what grade would you give it?", "type": "mc", "options": ["A", "B", "C", "D", "F"]},
+    {"q": "Describe the ice cream machine's personality in a few words", "type": "free"},
+]
+
+POLL_QUESTIONS_UP = [
+    {"q": "What flavor are you getting today?", "type": "mc", "options": ["Chocolate", "Vanilla", "Strawberry", "Whatever's loaded"]},
+    {"q": "Rate today's ice cream experience", "type": "mc", "options": ["\u2b50", "\u2b50\u2b50", "\u2b50\u2b50\u2b50", "\u2b50\u2b50\u2b50\u2b50", "\u2b50\u2b50\u2b50\u2b50\u2b50"]},
+    {"q": "How many times have you gone for ice cream this week?", "type": "mc", "options": ["0 (going now)", "1-2", "3-5", "I've lost count"]},
+    {"q": "Describe the ice cream machine's redemption arc in a few words", "type": "free"},
+    {"q": "If the ice cream machine were an MSOE major, what would it be?", "type": "free"},
+    {"q": "How do you celebrate the machine being up?", "type": "mc", "options": ["Get ice cream immediately", "Tell a friend", "Report it here", "All of the above"]},
+    {"q": "Quick \u2014 go get ice cream before it goes down again?", "type": "mc", "options": ["Already on my way", "Just got some", "Saving it for later", "I don't trust it yet"]},
+    {"q": "What ice cream topping should the dining hall add?", "type": "free"},
+    {"q": "Does the ice cream taste better when you know the machine could go down any second?", "type": "mc", "options": ["Absolutely", "A little", "Same as always", "I savor every bite"]},
+    {"q": "What would you name the ice cream machine now that it's working?", "type": "free"},
+]
+
+POLL_QUESTIONS_UNIVERSAL = [
+    {"q": "Favorite ice cream flavor of all time?", "type": "free"},
+    {"q": "Unpopular opinion: the ice cream machine is ___", "type": "free"},
+    {"q": "What would you name the ice cream machine?", "type": "free"},
+    {"q": "Ice cream is best enjoyed...", "type": "mc", "options": ["After a meal", "As a meal", "Late at night", "Any time", "For breakfast"]},
+    {"q": "How often do you check this tracker?", "type": "mc", "options": ["First time here", "Occasionally", "Daily", "Multiple times a day"]},
+    {"q": "Should MSOE get a second ice cream machine as backup?", "type": "mc", "options": ["Absolutely", "Probably", "One is enough", "Fix the first one first"]},
+    {"q": "What's the best dining hall item besides ice cream?", "type": "free"},
+    {"q": "If you could add one thing to the dining hall, what would it be?", "type": "free"},
+    {"q": "How would you rate the dining hall overall?", "type": "mc", "options": ["\u2b50", "\u2b50\u2b50", "\u2b50\u2b50\u2b50", "\u2b50\u2b50\u2b50\u2b50", "\u2b50\u2b50\u2b50\u2b50\u2b50"]},
+    {"q": "Do you eat ice cream year-round or only in warm weather?", "type": "mc", "options": ["Year-round obviously", "Mostly warm weather", "Only summer", "Wisconsin has warm weather?"]},
+]
+
+POLL_MAX_FREE_LEN = 100
+
+
+def _poll_trailing_uptime(resource_id, now_ts):
+    """Return the average uptime% over the last 3 days from DAYSUMMARY records."""
+    today = _central_today(now_ts)
+    pcts = []
+    for i in range(1, 4):
+        d = today - datetime.timedelta(days=i)
+        ds = d.strftime("%Y-%m-%d")
+        item = table.get_item(
+            Key={"pk": f"RESOURCE#{resource_id}", "sk": f"DAYSUMMARY#{ds}"}
+        ).get("Item")
+        if item and "up_pct" in item:
+            pcts.append(float(item["up_pct"]))
+    return sum(pcts) / len(pcts) if pcts else None
+
+
+def _select_daily_question(resource_id, now_ts):
+    """Pick today's question deterministically from the appropriate tier."""
+    avg = _poll_trailing_uptime(resource_id, now_ts)
+    if avg is None or avg < 30:
+        tier_pool = POLL_QUESTIONS_DOWN
+    elif avg < 70:
+        tier_pool = POLL_QUESTIONS_SHAKY
+    else:
+        tier_pool = POLL_QUESTIONS_UP
+    pool = tier_pool + POLL_QUESTIONS_UNIVERSAL
+
+    today_str = _central_today(now_ts).strftime("%Y-%m-%d")
+    h = hashlib.md5((today_str + ":" + resource_id).encode()).hexdigest()
+    idx = int(h, 16) % len(pool)
+    return pool[idx]
+
+
+def _get_daily_poll(resource_id, query_params):
+    if not _valid_resource_id(resource_id):
+        return _resp(400, {"error": "Invalid resource_id"})
+
+    meta = table.get_item(
+        Key={"pk": f"RESOURCE#{resource_id}", "sk": "#METADATA"}
+    ).get("Item")
+    if not meta:
+        return _resp(404, {"error": "Resource not found"})
+
+    now = time.time()
+    today_str = _central_today(now).strftime("%Y-%m-%d")
+    question = _select_daily_question(resource_id, now)
+
+    # Query all votes for today
+    poll_pk = f"DAILYPOLL#{resource_id}#{today_str}"
+    result = table.query(
+        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+        ExpressionAttributeValues={
+            ":pk": poll_pk,
+            ":prefix": "VOTE#",
+        },
+    )
+    votes = result.get("Items", [])
+
+    username = (query_params.get("username") or "").strip().lower()
+    user_voted = False
+    user_choice = None
+
+    if question["type"] == "mc":
+        tallies = [0] * len(question["options"])
+        for v in votes:
+            ci = int(v.get("choice", 0))
+            if 0 <= ci < len(tallies):
+                tallies[ci] += 1
+            if username and v.get("sk", "").lower() == f"vote#{username}":
+                user_voted = True
+                user_choice = ci
+        response = {
+            "date": today_str,
+            "question": question["q"],
+            "type": "mc",
+            "options": question["options"],
+            "tallies": tallies,
+            "total_votes": sum(tallies),
+            "user_voted": user_voted,
+            "user_choice": user_choice,
+        }
+    else:
+        responses = []
+        for v in votes:
+            display = v.get("display_name", v.get("sk", "").replace("VOTE#", ""))
+            responses.append({"text": v.get("choice", ""), "username": display})
+            if username and v.get("sk", "").lower() == f"vote#{username}":
+                user_voted = True
+                user_choice = v.get("choice", "")
+        response = {
+            "date": today_str,
+            "question": question["q"],
+            "type": "free",
+            "responses": responses,
+            "total_votes": len(responses),
+            "user_voted": user_voted,
+            "user_choice": user_choice,
+        }
+
+    return _resp(200, response)
+
+
+def _get_poll_history(resource_id, query_params):
+    """Return the last 7 days of poll results (excluding today)."""
+    if not _valid_resource_id(resource_id):
+        return _resp(400, {"error": "Invalid resource_id"})
+
+    meta = table.get_item(
+        Key={"pk": f"RESOURCE#{resource_id}", "sk": "#METADATA"}
+    ).get("Item")
+    if not meta:
+        return _resp(404, {"error": "Resource not found"})
+
+    now = time.time()
+    today = _central_today(now)
+    polls = []
+
+    for i in range(1, 8):  # last 7 days
+        d = today - datetime.timedelta(days=i)
+        ds = d.strftime("%Y-%m-%d")
+
+        # Reconstruct the question for that day by simulating the timestamp
+        ct_offset = _central_utc_offset(d)
+        noon_central = datetime.datetime(d.year, d.month, d.day, 12, 0, 0)
+        noon_utc = noon_central - ct_offset
+        past_ts = (noon_utc - datetime.datetime(1970, 1, 1)).total_seconds()
+        question = _select_daily_question(resource_id, past_ts)
+
+        # Fetch votes
+        poll_pk = f"DAILYPOLL#{resource_id}#{ds}"
+        result = table.query(
+            KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+            ExpressionAttributeValues={
+                ":pk": poll_pk,
+                ":prefix": "VOTE#",
+            },
+        )
+        votes = result.get("Items", [])
+
+        if not votes:
+            continue  # skip days with no participation
+
+        if question["type"] == "mc":
+            tallies = [0] * len(question["options"])
+            for v in votes:
+                ci = int(v.get("choice", 0))
+                if 0 <= ci < len(tallies):
+                    tallies[ci] += 1
+            polls.append({
+                "date": ds,
+                "question": question["q"],
+                "type": "mc",
+                "options": question["options"],
+                "tallies": tallies,
+                "total_votes": sum(tallies),
+            })
+        else:
+            responses = []
+            for v in votes:
+                display = v.get("display_name", v.get("sk", "").replace("VOTE#", ""))
+                responses.append({"text": v.get("choice", ""), "username": display})
+            polls.append({
+                "date": ds,
+                "question": question["q"],
+                "type": "free",
+                "responses": responses,
+                "total_votes": len(responses),
+            })
+
+    return _resp(200, {"polls": polls})
+
+
+def _submit_daily_poll(resource_id, body):
+    if not _valid_resource_id(resource_id):
+        return _resp(400, {"error": "Invalid resource_id"})
+
+    username = _validate_username(body.get("username", ""))
+    if not username:
+        return _resp(400, {"error": "Username is required to vote."})
+
+    meta = table.get_item(
+        Key={"pk": f"RESOURCE#{resource_id}", "sk": "#METADATA"}
+    ).get("Item")
+    if not meta:
+        return _resp(404, {"error": "Resource not found"})
+
+    now = time.time()
+    today_str = _central_today(now).strftime("%Y-%m-%d")
+    question = _select_daily_question(resource_id, now)
+    poll_pk = f"DAILYPOLL#{resource_id}#{today_str}"
+    vote_sk = f"VOTE#{username.lower()}"
+
+    # Check if already voted (conditional put)
+    choice = body.get("choice")
+    if question["type"] == "mc":
+        if not isinstance(choice, int) or choice < 0 or choice >= len(question["options"]):
+            return _resp(400, {"error": "Invalid choice."})
+        choice_val = choice
+    else:
+        if not isinstance(choice, str) or not choice.strip():
+            return _resp(400, {"error": "Response cannot be empty."})
+        choice = choice.strip()
+        if len(choice) > POLL_MAX_FREE_LEN:
+            return _resp(400, {"error": f"Response must be {POLL_MAX_FREE_LEN} characters or fewer."})
+        choice_val = choice
+
+    try:
+        table.put_item(
+            Item={
+                "pk": poll_pk,
+                "sk": vote_sk,
+                "choice": choice_val if isinstance(choice_val, str) else Decimal(str(choice_val)),
+                "display_name": username,
+                "timestamp": Decimal(str(int(now))),
+            },
+            ConditionExpression="attribute_not_exists(pk)",
+        )
+    except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
+        return _resp(409, {"error": "You already voted today."})
+
+    return _resp(201, {"message": "Vote recorded.", "choice": choice_val})
+
+
+# ---------------------------------------------------------------------------
 # Lambda entry point
 # ---------------------------------------------------------------------------
 def handler(event, context):
@@ -634,6 +918,18 @@ def handler(event, context):
             )
             user_agent = event.get("headers", {}).get("user-agent", "unknown")
             return _submit_report(resource_id, body, source_ip, user_agent)
+
+        if path.endswith("/daily-poll") and method == "GET":
+            query_params = event.get("queryStringParameters") or {}
+            return _get_daily_poll(resource_id, query_params)
+
+        if path.endswith("/daily-poll") and method == "POST":
+            body = json.loads(event.get("body") or "{}")
+            return _submit_daily_poll(resource_id, body)
+
+        if path.endswith("/poll-history") and method == "GET":
+            query_params = event.get("queryStringParameters") or {}
+            return _get_poll_history(resource_id, query_params)
 
         return _resp(404, {"error": "Not found"})
 

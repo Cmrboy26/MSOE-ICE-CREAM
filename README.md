@@ -49,6 +49,9 @@ Open the `frontend_url` in your browser. The `config.js` file with the API URL i
 | `POST` | `/resources/{id}/reports` | Submit a report (`{ "status": "up" }` or `"down"`, optional `"username"`) |
 | `GET` | `/leaderboard` | Top 10 reporters (optional `?username=X` for your rank) |
 | `POST` | `/leaderboard` | Register a display name after first report (`{ "username": "..." }`) |
+| `GET` | `/resources/{id}/daily-poll` | Today's poll question, results, and vote status (optional `?username=X`) |
+| `POST` | `/resources/{id}/daily-poll` | Submit a poll vote (`{ "username": "...", "choice": 0 }` for MC or `{ "username": "...", "choice": "text" }` for free-text) |
+| `GET` | `/resources/{id}/poll-history` | Last 7 days of poll results (skips days with no votes) |
 
 ### Rate Limiting
 
@@ -95,6 +98,12 @@ The frontend renders a Discord/Statuspage-style UI:
   - **50–90%** (blue) — Backhanded compliments (15 comparisons). Grudging acknowledgment of progress.
   - **> 90%** (green) — Sarcastic celebration (15 comparisons). Suspicion and disbelief that it actually works.
   Comparisons are picked deterministically by date so all users see the same 3 each day.
+- **Daily poll** — A daily question card appears below the shame comparisons. Questions are selected deterministically based on the date and the trailing 3-day average uptime, split into tiers:
+  - **< 30% uptime**: Commiseration questions ("What do you miss most about the ice cream machine?")
+  - **30–70% uptime**: Hopeful/uncertain questions ("Will the machine be working when you go to dinner?")
+  - **> 70% uptime**: Celebration questions ("What flavor are you getting today?")
+  - **Universal**: Questions that work at any uptime level
+  Questions are either multiple-choice (with live result bars visible before voting) or free-text (responses shown in a scrollable list). Each username can vote once per day. Votes are stored in DynamoDB (`pk: DAILYPOLL#{resource_id}#{date}`, `sk: VOTE#{username}`). A "Past polls" button toggles the last 7 days of results.
 - **Leaderboard** — A flashy site-wide button opens a modal showing the top 10 reporters ranked by total report count, with medal styling for the top 3. After submitting a report, a modal prompts first-time users to enter a display name (max 30 characters) to join the leaderboard. Returning users see their updated score automatically. Names are stored in `localStorage` and tied to a permanent DynamoDB counter (`pk: LEADERBOARD`, `sk: USER#{name}`). The same name can be used across devices to share a single leaderboard entry.
 - **Streaks** — Consecutive daily reporting streaks are tracked per user and displayed as a fire badge on the leaderboard and below the report buttons.
 - **Reports-today badge** — A site-wide counter shows how many unique reporters have contributed today.
