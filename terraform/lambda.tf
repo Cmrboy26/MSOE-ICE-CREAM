@@ -60,7 +60,7 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       TABLE_NAME         = aws_dynamodb_table.main.name
-      RATE_LIMIT_SECONDS = "3600"
+      RATE_LIMIT_SECONDS = "10800"
     }
   }
 

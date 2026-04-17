@@ -23,7 +23,7 @@ import boto3
 # Config
 # ---------------------------------------------------------------------------
 TABLE_NAME = os.environ["TABLE_NAME"]
-RATE_LIMIT_SECONDS = int(os.environ.get("RATE_LIMIT_SECONDS", "3600"))
+RATE_LIMIT_SECONDS = int(os.environ.get("RATE_LIMIT_SECONDS", "10800"))
 REPORT_TTL_DAYS = 90
 HISTORY_DAYS = 90
 STATUS_WINDOW_HOURS = 24

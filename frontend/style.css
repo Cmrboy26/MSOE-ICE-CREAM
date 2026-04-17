@@ -656,6 +656,75 @@ footer {
   white-space: nowrap;
 }
 
+/* ── User streak on main page ─────────────────────────────── */
+.user-streak {
+  display: none;
+  text-align: center;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+/* ── Shame comparisons ────────────────────────────────────── */
+.shame-comparisons {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  background: #fef2f2;
+  border-left: 4px solid #ef4444;
+  border-radius: 6px;
+}
+
+.shame-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #991b1b;
+  margin-bottom: 0.5rem;
+}
+
+.shame-item {
+  color: #7f1d1d;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 0.35rem 0;
+}
+
+.shame-item + .shame-item {
+  border-top: 1px solid #fecaca;
+}
+
+/* Tier: moderate shade (10-50%) */
+.shame-shade {
+  background: #fffbeb;
+  border-left-color: #f59e0b;
+}
+.shame-shade .shame-label { color: #92400e; }
+.shame-shade .shame-item { color: #78350f; }
+.shame-shade .shame-item + .shame-item { border-top-color: #fde68a; }
+
+/* Tier: backhanded compliments (50-90%) */
+.shame-backhanded {
+  background: #eff6ff;
+  border-left-color: #3b82f6;
+}
+.shame-backhanded .shame-label { color: #1e40af; }
+.shame-backhanded .shame-item { color: #1e3a5f; }
+.shame-backhanded .shame-item + .shame-item { border-top-color: #bfdbfe; }
+
+/* Tier: sarcastic celebration (>90%) */
+.shame-celebration {
+  background: #f0fdf4;
+  border-left-color: #22c55e;
+}
+.shame-celebration .shame-label { color: #166534; }
+.shame-celebration .shame-item { color: #14532d; }
+.shame-celebration .shame-item + .shame-item { border-top-color: #bbf7d0; }
+
 @media (max-width: 480px) {
   .container {
     padding: 1.25rem 0.75rem;
