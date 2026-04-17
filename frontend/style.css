@@ -1,0 +1,381 @@
+/* ── Reset & base ──────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen, Ubuntu, sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+  min-height: 100vh;
+}
+
+/* ── Layout ───────────────────────────────────────────────── */
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.site-title {
+  font-size: 2rem;
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 1.05rem;
+  margin-top: 0.35rem;
+}
+
+.mission {
+  margin-top: 1rem;
+  padding: 0.85rem 1.25rem;
+  background: #fff8e1;
+  border-left: 4px solid #f59e0b;
+  border-radius: 6px;
+  color: #92400e;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.contribute-note {
+  text-align: center;
+  color: #555;
+  font-size: 0.9rem;
+  padding: 1rem 0.5rem 0;
+  line-height: 1.5;
+}
+
+footer {
+  text-align: center;
+  padding: 2.5rem 0 1rem;
+  color: #999;
+  font-size: 0.85rem;
+}
+
+/* ── Resource card ────────────────────────────────────────── */
+.resource-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 1.75rem 2rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+.resource-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.resource-name {
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.resource-description {
+  color: #666;
+  margin-bottom: 1.25rem;
+}
+
+/* ── Status message ───────────────────────────────────────── */
+.status-message {
+  font-size: 1.05rem;
+  font-weight: 500;
+  margin-bottom: 1.25rem;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+}
+
+.status-message.up {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-message.down {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-message.unknown {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* ── Status indicator ─────────────────────────────────────── */
+.status-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.up {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot.down {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot.unknown {
+  background: #a3a3a3;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ── Stats grid ───────────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat {
+  text-align: center;
+  padding: 0.65rem 0.5rem;
+  background: #f8f9fa;
+  border-radius: 10px;
+}
+
+.stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.stat-label {
+  font-size: 0.78rem;
+  color: #888;
+  margin-top: 0.2rem;
+}
+
+.stat-value.up {
+  color: #22c55e;
+}
+.stat-value.down {
+  color: #ef4444;
+}
+.stat-value.unknown {
+  color: #a3a3a3;
+}
+
+/* ── Confidence bar ───────────────────────────────────────── */
+.confidence-bar {
+  width: 100%;
+  height: 5px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 0.4rem;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.confidence-fill.up {
+  background: #22c55e;
+}
+.confidence-fill.down {
+  background: #ef4444;
+}
+.confidence-fill.unknown {
+  background: #a3a3a3;
+}
+
+/* ── History bar (Discord-style 90-day) ───────────────────── */
+.history-section {
+  margin-bottom: 1.5rem;
+}
+
+.history-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+}
+
+.history-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.history-bars {
+  display: flex;
+  gap: 2px;
+  align-items: stretch;
+  height: 34px;
+}
+
+.history-bar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  position: relative;
+}
+
+.history-bar:hover {
+  opacity: 0.7;
+  transform: scaleY(1.15);
+}
+
+.history-bar.great {
+  background: #22c55e;
+}
+
+.history-bar.degraded {
+  background: #f59e0b;
+}
+
+.history-bar.down {
+  background: #ef4444;
+}
+
+.history-bar.no-data {
+  background: #e5e7eb;
+}
+
+.history-bar.predicted {
+  opacity: 0.45;
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 3px,
+    rgba(255, 255, 255, 0.35) 3px,
+    rgba(255, 255, 255, 0.35) 5px
+  );
+}
+
+.history-dates {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  color: #999;
+}
+
+.history-empty {
+  text-align: center;
+  color: #999;
+  font-size: 0.9rem;
+  padding: 1rem 0;
+}
+
+/* ── Report buttons ───────────────────────────────────────── */
+.report-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.report-btn {
+  padding: 0.7rem 2rem;
+  border: none;
+  border-radius: 9px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.report-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.report-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.report-btn.up {
+  background: #22c55e;
+  color: #fff;
+}
+
+.report-btn.down {
+  background: #ef4444;
+  color: #fff;
+}
+
+/* ── Feedback / cooldown ──────────────────────────────────── */
+.feedback {
+  text-align: center;
+  margin-top: 0.85rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  display: none;
+}
+
+.feedback.show {
+  display: block;
+}
+
+.feedback.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.feedback.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.feedback.info {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+/* ── Misc ─────────────────────────────────────────────────── */
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: #888;
+  font-size: 1.05rem;
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 1.25rem 0.75rem;
+  }
+  .resource-card {
+    padding: 1.25rem;
+  }
+  .report-btn {
+    padding: 0.65rem 1.25rem;
+  }
+}
