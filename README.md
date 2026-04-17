@@ -52,7 +52,7 @@ Open the `frontend_url` in your browser. The `config.js` file with the API URL i
 
 ### Rate Limiting
 
-Each user (identified by IP + User-Agent hash) can submit one report per resource per hour. The server returns `429` with a `retry_after_seconds` field when rate-limited. The client also mirrors the cooldown locally and shows a countdown timer.
+Each user (identified by IP + User-Agent hash) can submit one report per resource per 3 hours. The server returns `429` with a `retry_after_seconds` field when rate-limited. The client also mirrors the cooldown locally and shows a countdown timer.
 
 ## Status Algorithm
 
@@ -88,8 +88,16 @@ The frontend renders a Discord/Statuspage-style UI:
 - **Status dot + banner message** — green/red/gray dot with a descriptive one-liner.
 - **Stats grid** — current status, 24h uptime, 90-day uptime, 24h report count.
 - **90-day history bar** — 90 colored bars, one per day. Green (≥ 90%), amber (50–89%), red (< 50%), gray (no data). Days with no reports inherit the last known status and are shown faded with a stripe pattern to indicate a prediction. Hover for details.
-- **Report buttons** — "It's Working" / "It's Down" with a cooldown timer after submission.
+- **Report buttons** — "It's Working" / "It's Down" with a 3-hour cooldown timer after submission.
+- **Shame comparisons** — A "Reality check" card below the history bar shows 3 daily-rotating comparisons that adapt to the current 90-day uptime. Four tiers change the tone and color:
+  - **< 10%** (red) — Brutal roasts (30 comparisons). Cost breakdowns, absurd analogies, campus life burns.
+  - **10–50%** (amber) — Moderate shade (15 comparisons). Grade analogies, part-time job jokes.
+  - **50–90%** (blue) — Backhanded compliments (15 comparisons). Grudging acknowledgment of progress.
+  - **> 90%** (green) — Sarcastic celebration (15 comparisons). Suspicion and disbelief that it actually works.
+  Comparisons are picked deterministically by date so all users see the same 3 each day.
 - **Leaderboard** — A flashy site-wide button opens a modal showing the top 10 reporters ranked by total report count, with medal styling for the top 3. After submitting a report, a modal prompts first-time users to enter a display name (max 30 characters) to join the leaderboard. Returning users see their updated score automatically. Names are stored in `localStorage` and tied to a permanent DynamoDB counter (`pk: LEADERBOARD`, `sk: USER#{name}`). The same name can be used across devices to share a single leaderboard entry.
+- **Streaks** — Consecutive daily reporting streaks are tracked per user and displayed as a fire badge on the leaderboard and below the report buttons.
+- **Reports-today badge** — A site-wide counter shows how many unique reporters have contributed today.
 - Auto-refreshes every 30 seconds.
 
 ## Adding a New Resource
