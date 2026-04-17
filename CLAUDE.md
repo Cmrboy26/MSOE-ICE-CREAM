@@ -13,7 +13,7 @@ MSOE Ice Cream Machine Uptime Tracker — a serverless, community-powered status
 | Infrastructure | Terraform (AWS free tier) | `terraform/` |
 | Scripts | Python utilities | `scripts/` |
 
-DynamoDB uses a single-table design with `pk`/`sk` keys. Key prefixes: `RESOURCES`, `RESOURCE#`, `REPORT#`, `DAYSUMMARY#`, `RATELIMIT#`.
+DynamoDB uses a single-table design with `pk`/`sk` keys. Key prefixes: `RESOURCES`, `RESOURCE#`, `REPORT#`, `DAYSUMMARY#`, `RATELIMIT#`, `LEADERBOARD`.
 
 ## Build and Deploy
 

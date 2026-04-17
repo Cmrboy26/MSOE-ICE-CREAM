@@ -19,6 +19,8 @@
       </div>
     </header>
 
+    <button class="leaderboard-btn" id="leaderboard-btn" onclick="openLeaderboard()">&#127942; LEADERBOARD</button>
+
     <main id="resources-container">
       <div class="loading">Loading resources&hellip;</div>
     </main>
@@ -35,6 +37,22 @@
         Bars show 90 days of history &mdash; hover for details.
       </p>
     </footer>
+  </div>
+
+  <!-- Post-report modal -->
+  <div class="modal-overlay" id="report-modal">
+    <div class="modal">
+      <div class="modal-body" id="report-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Leaderboard modal -->
+  <div class="modal-overlay" id="leaderboard-modal">
+    <div class="modal modal-wide">
+      <button class="modal-close" id="leaderboard-close">&times;</button>
+      <h2 class="modal-title">&#127942; Top Reporters</h2>
+      <div id="leaderboard-content"><div class="loading">Loading&hellip;</div></div>
+    </div>
   </div>
 
   <script src="config.js"></script>

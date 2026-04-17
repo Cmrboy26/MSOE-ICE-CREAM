@@ -5,8 +5,8 @@ Routes:
     GET  /resources                          -> list tracked resources
     GET  /resources/{resource_id}/status     -> current weighted status
     GET  /resources/{resource_id}/history    -> 90-day daily uptime history
-    POST /resources/{resource_id}/reports    -> submit a user report
-"""
+    POST /resources/{resource_id}/reports    -> submit a user report    GET  /leaderboard                        -> top reporters
+    POST /leaderboard                        -> register a reporter name"""
 
 import datetime
 import json
@@ -32,6 +32,8 @@ CONSENSUS_BOOST = 1.3           # multiplier for reports agreeing w/ majority
 MAX_REPORTS_QUERY = 1000        # safety cap on DynamoDB query results
 
 RESOURCE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$")
+USERNAME_RE = re.compile(r"^[a-zA-Z0-9 _-]+$")
+USERNAME_MAX_LEN = 30
 
 # Central Time (US) offsets: CST = UTC-6, CDT = UTC-5
 _CST = datetime.timedelta(hours=-6)
@@ -382,6 +384,32 @@ def _compact_yesterday():
     return {"compacted": len(resources), "date": yesterday_str}
 
 
+def _validate_username(username):
+    """Return a cleaned username or None if invalid."""
+    if not username or not isinstance(username, str):
+        return None
+    username = username.strip()
+    if not username or len(username) > USERNAME_MAX_LEN:
+        return None
+    if not USERNAME_RE.match(username):
+        return None
+    return username
+
+
+def _increment_leaderboard(username):
+    """Atomically increment a leaderboard entry. Returns the new count."""
+    result = table.update_item(
+        Key={"pk": "LEADERBOARD", "sk": f"USER#{username.lower()}"},
+        UpdateExpression="SET display_name = :dn ADD report_count :one",
+        ExpressionAttributeValues={
+            ":dn": username,
+            ":one": 1,
+        },
+        ReturnValues="ALL_NEW",
+    )
+    return int(result["Attributes"]["report_count"])
+
+
 def _submit_report(resource_id, body, source_ip, user_agent):
     if not _valid_resource_id(resource_id):
         return _resp(400, {"error": "Invalid resource_id"})
@@ -431,7 +459,85 @@ def _submit_report(resource_id, body, source_ip, user_agent):
         "ttl": Decimal(str(now_int + RATE_LIMIT_SECONDS)),
     })
 
-    return _resp(201, {"message": "Report submitted", "status": status})
+    # Leaderboard: increment score if username provided
+    username = _validate_username(body.get("username", ""))
+    response_body = {"message": "Report submitted", "status": status}
+    if username:
+        score = _increment_leaderboard(username)
+        response_body["leaderboard_score"] = score
+
+    return _resp(201, response_body)
+
+
+# ---------------------------------------------------------------------------
+# Leaderboard
+# ---------------------------------------------------------------------------
+def _register_reporter(body, source_ip, user_agent):
+    """First-time registration: claim the most recent report for a username."""
+    username = _validate_username(body.get("username", ""))
+    if not username:
+        return _resp(400, {"error": "Invalid username. Max 30 characters, letters/numbers/spaces/hyphens/underscores."})
+
+    # Anti-abuse: verify a recent report from this IP+UA
+    uhash = _user_hash(source_ip, user_agent)
+    now_int = int(time.time())
+    recent_cutoff = now_int - 300  # 5 minutes
+
+    # Check if any rate-limit marker exists (means they submitted recently)
+    rate_items = table.query(
+        KeyConditionExpression="pk = :pk",
+        ExpressionAttributeValues={":pk": f"RATELIMIT#{uhash}"},
+        Limit=1,
+    )
+    if not rate_items.get("Items"):
+        return _resp(400, {"error": "No recent report found. Submit a report first."})
+
+    score = _increment_leaderboard(username)
+    return _resp(200, {"username": username, "score": score})
+
+
+def _get_leaderboard(query_params):
+    """Return the top reporters and optionally a specific user's rank."""
+    result = table.query(
+        KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+        ExpressionAttributeValues={
+            ":pk": "LEADERBOARD",
+            ":prefix": "USER#",
+        },
+    )
+    items = result.get("Items", [])
+
+    # Sort by report_count descending
+    items.sort(key=lambda x: int(x.get("report_count", 0)), reverse=True)
+
+    top_10 = []
+    for i, item in enumerate(items[:10]):
+        top_10.append({
+            "rank": i + 1,
+            "username": item.get("display_name", ""),
+            "report_count": int(item.get("report_count", 0)),
+        })
+
+    response = {
+        "leaderboard": top_10,
+        "total_reporters": len(items),
+    }
+
+    # If a username is requested, find their rank
+    requested = (query_params.get("username") or "").strip()
+    if requested:
+        user_entry = None
+        for i, item in enumerate(items):
+            if item.get("display_name", "").lower() == requested.lower():
+                user_entry = {
+                    "rank": i + 1,
+                    "username": item.get("display_name", ""),
+                    "report_count": int(item.get("report_count", 0)),
+                }
+                break
+        response["user"] = user_entry
+
+    return _resp(200, response)
 
 
 # ---------------------------------------------------------------------------
@@ -454,6 +560,20 @@ def handler(event, context):
 
         if path == "/resources" and method == "GET":
             return _list_resources()
+
+        if path == "/leaderboard" and method == "GET":
+            query_params = event.get("queryStringParameters") or {}
+            return _get_leaderboard(query_params)
+
+        if path == "/leaderboard" and method == "POST":
+            body = json.loads(event.get("body") or "{}")
+            source_ip = (
+                event.get("requestContext", {})
+                .get("http", {})
+                .get("sourceIp", "0.0.0.0")
+            )
+            user_agent = event.get("headers", {}).get("user-agent", "unknown")
+            return _register_reporter(body, source_ip, user_agent)
 
         resource_id = path_params.get("resource_id", "")
 

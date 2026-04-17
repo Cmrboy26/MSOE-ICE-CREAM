@@ -265,17 +265,24 @@
     var btns = card.querySelectorAll(".report-btn");
     for (var i = 0; i < btns.length; i++) btns[i].disabled = true;
 
-    postJSON("/resources/" + encodeURIComponent(id) + "/reports", {
-      status: status,
-    })
+    var savedName = localStorage.getItem("ut_username") || "";
+    var payload = { status: status };
+    if (savedName) payload.username = savedName;
+
+    postJSON("/resources/" + encodeURIComponent(id) + "/reports", payload)
       .then(function (result) {
         if (result.ok) {
           setLocalLimit(id, 3600);
-          showFeedback(id, "Report submitted! Thank you.", "success");
           startCooldown(id);
           setTimeout(function () {
             refreshResource(id);
           }, 1000);
+
+          if (savedName) {
+            showReturningModal(savedName, result.data.leaderboard_score || 0);
+          } else {
+            showFirstTimeModal();
+          }
         } else if (result.status === 429) {
           var retry = result.data.retry_after_seconds || 3600;
           setLocalLimit(id, retry);
@@ -295,6 +302,167 @@
         for (var j = 0; j < btns.length; j++) btns[j].disabled = false;
       });
   }
+
+  // ─── Post-report modals ─────────────────────────────────────
+  var reportModal = document.getElementById("report-modal");
+  var reportModalBody = document.getElementById("report-modal-body");
+
+  function closeReportModal() {
+    reportModal.classList.remove("open");
+  }
+
+  function showFirstTimeModal() {
+    reportModalBody.innerHTML =
+      '<div class="modal-heading">Thanks for reporting! &#127881;</div>' +
+      '<p class="modal-text">Drop your name to claim your spot on the global reporter leaderboard.</p>' +
+      '<div class="name-input-wrap">' +
+      '  <input type="text" id="lb-name-input" maxlength="30" placeholder="Your name" autocomplete="off" />' +
+      '  <span class="char-count" id="lb-char-count">0/30</span>' +
+      '</div>' +
+      '<div class="modal-error" id="lb-error"></div>' +
+      '<div class="modal-actions">' +
+      '  <button class="modal-btn-primary" id="lb-join-btn">Join Leaderboard</button>' +
+      '  <button class="modal-btn-skip" id="lb-skip-btn">Skip</button>' +
+      '</div>';
+
+    reportModal.classList.add("open");
+
+    var input = document.getElementById("lb-name-input");
+    var charCount = document.getElementById("lb-char-count");
+    var errorEl = document.getElementById("lb-error");
+    var joinBtn = document.getElementById("lb-join-btn");
+    var skipBtn = document.getElementById("lb-skip-btn");
+
+    input.addEventListener("input", function () {
+      var len = input.value.length;
+      charCount.textContent = len + "/30";
+      charCount.className = len >= 28 ? "char-count warn" : "char-count";
+      errorEl.textContent = "";
+    });
+
+    skipBtn.addEventListener("click", closeReportModal);
+
+    joinBtn.addEventListener("click", function () {
+      var name = input.value.trim();
+      if (!name) {
+        errorEl.textContent = "Please enter a name.";
+        return;
+      }
+      if (!/^[a-zA-Z0-9 _-]+$/.test(name)) {
+        errorEl.textContent = "Letters, numbers, spaces, hyphens, and underscores only.";
+        return;
+      }
+
+      joinBtn.disabled = true;
+      joinBtn.textContent = "Joining\u2026";
+
+      postJSON("/leaderboard", { username: name })
+        .then(function (result) {
+          if (result.ok) {
+            localStorage.setItem("ut_username", name);
+            showReturningModal(name, result.data.score || 1);
+          } else {
+            errorEl.textContent = result.data.error || "Something went wrong.";
+            joinBtn.disabled = false;
+            joinBtn.textContent = "Join Leaderboard";
+          }
+        })
+        .catch(function () {
+          errorEl.textContent = "Network error. Try again.";
+          joinBtn.disabled = false;
+          joinBtn.textContent = "Join Leaderboard";
+        });
+    });
+
+    setTimeout(function () { input.focus(); }, 100);
+  }
+
+  function showReturningModal(name, score) {
+    reportModalBody.innerHTML =
+      '<div class="modal-heading">Report logged! &#9989;</div>' +
+      '<p class="modal-text">Reported as <strong>' + esc(name) + '</strong>.<br>Your score: <strong>' + score + ' report' + (score !== 1 ? 's' : '') + '</strong></p>' +
+      '<div class="modal-actions">' +
+      '  <button class="modal-btn-dismiss" id="lb-dismiss-btn">Nice!</button>' +
+      '  <button class="modal-btn-skip" id="lb-view-btn">View Leaderboard</button>' +
+      '</div>';
+
+    reportModal.classList.add("open");
+
+    document.getElementById("lb-dismiss-btn").addEventListener("click", closeReportModal);
+    document.getElementById("lb-view-btn").addEventListener("click", function () {
+      closeReportModal();
+      openLeaderboard();
+    });
+  }
+
+  // Close modal on overlay click
+  reportModal.addEventListener("click", function (e) {
+    if (e.target === reportModal) closeReportModal();
+  });
+
+  // ─── Leaderboard modal ─────────────────────────────────────
+  var lbModal = document.getElementById("leaderboard-modal");
+  var lbContent = document.getElementById("leaderboard-content");
+  var lbClose = document.getElementById("leaderboard-close");
+
+  // Expose globally for the onclick handler
+  window.openLeaderboard = function () {
+    lbModal.classList.add("open");
+    lbContent.innerHTML = '<div class="loading">Loading&hellip;</div>';
+
+    var username = localStorage.getItem("ut_username") || "";
+    var url = "/leaderboard";
+    if (username) url += "?username=" + encodeURIComponent(username);
+
+    fetchJSON(url)
+      .then(function (data) {
+        var lb = (data && data.leaderboard) || [];
+
+        if (lb.length === 0 && !data.user) {
+          lbContent.innerHTML = '<div class="lb-empty">No reporters yet. Be the first!</div>';
+          return;
+        }
+
+        var html = '<ul class="lb-list">';
+        for (var i = 0; i < lb.length; i++) {
+          var entry = lb[i];
+          var rankCls = "";
+          if (entry.rank === 1) rankCls = " gold";
+          else if (entry.rank === 2) rankCls = " silver";
+          else if (entry.rank === 3) rankCls = " bronze";
+          var isMe = username && entry.username.toLowerCase() === username.toLowerCase();
+          html +=
+            '<li class="lb-row' + (isMe ? ' highlight' : '') + '">' +
+            '  <span class="lb-rank' + rankCls + '">#' + entry.rank + '</span>' +
+            '  <span class="lb-name">' + esc(entry.username) + '</span>' +
+            '  <span class="lb-count">' + entry.report_count + '</span>' +
+            '</li>';
+        }
+        html += '</ul>';
+
+        if (data.user && data.user.rank > 10) {
+          html += '<hr class="lb-separator">';
+          html += '<div class="lb-user-row">Your rank: <strong>#' + data.user.rank + '</strong> &mdash; ' + esc(data.user.username) + ' &mdash; ' + data.user.report_count + ' report' + (data.user.report_count !== 1 ? 's' : '') + '</div>';
+        }
+
+        if (!username) {
+          html += '<div class="lb-cta">Submit a report to join the leaderboard!</div>';
+        }
+
+        lbContent.innerHTML = html;
+      })
+      .catch(function () {
+        lbContent.innerHTML = '<div class="lb-empty">Failed to load leaderboard.</div>';
+      });
+  };
+
+  lbClose.addEventListener("click", function () {
+    lbModal.classList.remove("open");
+  });
+
+  lbModal.addEventListener("click", function (e) {
+    if (e.target === lbModal) lbModal.classList.remove("open");
+  });
 
   // ─── Fetch both status + history for a resource ─────────────
   var historyCache = {};

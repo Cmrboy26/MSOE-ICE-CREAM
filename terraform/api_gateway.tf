@@ -46,3 +46,15 @@ resource "aws_apigatewayv2_route" "post_report" {
   route_key = "POST /resources/{resource_id}/reports"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
+
+resource "aws_apigatewayv2_route" "get_leaderboard" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /leaderboard"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_leaderboard" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /leaderboard"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}

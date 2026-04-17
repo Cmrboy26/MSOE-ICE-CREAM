@@ -46,7 +46,9 @@ Open the `frontend_url` in your browser. The `config.js` file with the API URL i
 | `GET` | `/resources` | List all tracked resources |
 | `GET` | `/resources/{id}/status` | Weighted 24-hour status for a resource |
 | `GET` | `/resources/{id}/history` | 90-day daily uptime history |
-| `POST` | `/resources/{id}/reports` | Submit a report (`{ "status": "up" }` or `"down"`) |
+| `POST` | `/resources/{id}/reports` | Submit a report (`{ "status": "up" }` or `"down"`, optional `"username"`) |
+| `GET` | `/leaderboard` | Top 10 reporters (optional `?username=X` for your rank) |
+| `POST` | `/leaderboard` | Register a display name after first report (`{ "username": "..." }`) |
 
 ### Rate Limiting
 
@@ -87,6 +89,7 @@ The frontend renders a Discord/Statuspage-style UI:
 - **Stats grid** — current status, 24h uptime, 90-day uptime, 24h report count.
 - **90-day history bar** — 90 colored bars, one per day. Green (≥ 90%), amber (50–89%), red (< 50%), gray (no data). Days with no reports inherit the last known status and are shown faded with a stripe pattern to indicate a prediction. Hover for details.
 - **Report buttons** — "It's Working" / "It's Down" with a cooldown timer after submission.
+- **Leaderboard** — A flashy site-wide button opens a modal showing the top 10 reporters ranked by total report count, with medal styling for the top 3. After submitting a report, a modal prompts first-time users to enter a display name (max 30 characters) to join the leaderboard. Returning users see their updated score automatically. Names are stored in `localStorage` and tied to a permanent DynamoDB counter (`pk: LEADERBOARD`, `sk: USER#{name}`). The same name can be used across devices to share a single leaderboard entry.
 - Auto-refreshes every 30 seconds.
 
 ## Adding a New Resource
